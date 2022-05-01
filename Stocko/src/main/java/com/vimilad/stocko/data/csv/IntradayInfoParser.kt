@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 import java.io.InputStreamReader
+import java.time.DayOfWeek
 import java.time.LocalDateTime
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,7 +29,19 @@ class IntradayInfoParser @Inject constructor(): CSVParser<IntradayInfo> {
                     dto.toIntradayInfo()
 
                 }.filter {
-                    it.date.dayOfMonth == LocalDateTime.now().minusDays(1).dayOfMonth
+                    // Stock Market is closed on Saturday & Sunday, the filter works based on this.
+
+                    val dayOfWeek = LocalDateTime.now().minusDays(1).dayOfWeek
+                    val isSaturday = dayOfWeek == DayOfWeek.SATURDAY
+                    val isSunday = dayOfWeek == DayOfWeek.SUNDAY
+
+                    val daysBefore: Long = when {
+                        isSaturday -> 2
+                        isSunday -> 3
+                        else -> 1
+                    }
+
+                    it.date.dayOfMonth == LocalDateTime.now().minusDays(daysBefore).dayOfMonth
                 }.sortedBy {
                     it.date.hour
                 }.also {
