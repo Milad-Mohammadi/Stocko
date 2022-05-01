@@ -1,7 +1,9 @@
 package com.vimilad.stocko.data.repository
 
+import com.vimilad.stocko.data.csv.CSVParser
 import com.vimilad.stocko.data.local.StockoDatabase
 import com.vimilad.stocko.data.mapper.toCompanyListing
+import com.vimilad.stocko.data.mapper.toCompanyListingEntity
 import com.vimilad.stocko.data.remote.StockoApi
 import com.vimilad.stocko.domain.model.CompanyListing
 import com.vimilad.stocko.domain.repository.StockoRepository
@@ -16,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class StockoRepositoryImpl @Inject constructor(
     val api: StockoApi,
-    val db: StockoDatabase
+    val db: StockoDatabase,
+    val companyListingsParser: CSVParser<CompanyListing>
 ): StockoRepository {
 
     private val dao = db.dao
@@ -39,13 +42,28 @@ class StockoRepositoryImpl @Inject constructor(
 
             val remoteListings = try {
                 val response = api.getListings()
-                TODO("Parse CSV data")
+                companyListingsParser.parse(response.byteStream())
             } catch (e: IOException) {
                 e.printStackTrace()
                 emit(Resource.Error("Couldn't load data because:\n${e.message}"))
+                null
             } catch (e: HttpException) {
                 e.printStackTrace()
                 emit(Resource.Error("Couldn't load data because:\n${e.message}"))
+                null
+            }
+
+            remoteListings?.let { listings ->
+                dao.clearCompanyListings()
+                dao.insertCompanyListings(
+                    listings.map { it.toCompanyListingEntity() }
+                )
+                emit(Resource.Success(
+                    data = dao
+                        .searchCompanyListing("")
+                        .map { it.toCompanyListing() }
+                ))
+                emit(Resource.Loading(false))
             }
         }
     }
