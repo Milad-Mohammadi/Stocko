@@ -2,10 +2,13 @@ package com.vimilad.stocko.data.repository
 
 import com.vimilad.stocko.data.csv.CSVParser
 import com.vimilad.stocko.data.local.StockoDatabase
+import com.vimilad.stocko.data.mapper.toCompanyInfo
 import com.vimilad.stocko.data.mapper.toCompanyListing
 import com.vimilad.stocko.data.mapper.toCompanyListingEntity
 import com.vimilad.stocko.data.remote.StockoApi
+import com.vimilad.stocko.domain.model.CompanyInfo
 import com.vimilad.stocko.domain.model.CompanyListing
+import com.vimilad.stocko.domain.model.IntradayInfo
 import com.vimilad.stocko.domain.repository.StockoRepository
 import com.vimilad.stocko.util.Resource
 import kotlinx.coroutines.flow.Flow
@@ -19,7 +22,8 @@ import javax.inject.Singleton
 class StockoRepositoryImpl @Inject constructor(
     private val api: StockoApi,
     private val db: StockoDatabase,
-    private val companyListingsParser: CSVParser<CompanyListing>
+    private val companyListingsParser: CSVParser<CompanyListing>,
+    private val intradayInfoParser: CSVParser<IntradayInfo>
 ): StockoRepository {
 
     private val dao = db.dao
@@ -65,6 +69,33 @@ class StockoRepositoryImpl @Inject constructor(
                 ))
                 emit(Resource.Loading(false))
             }
+        }
+    }
+
+    override suspend fun getIntradayInfo(symbol: String): Resource<List<IntradayInfo>> {
+        return try {
+            val response = api.getIntradayInfo(symbol)
+            val result = intradayInfoParser.parse(response.byteStream())
+            Resource.Success(result)
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Resource.Error("Couldn't load intraday info because:\n${e.message}")
+        } catch (e: HttpException) {
+            e.printStackTrace()
+            Resource.Error("Couldn't load intraday info because:\n${e.message}")
+        }
+    }
+
+    override suspend fun getCompanyInfo(symbol: String): Resource<CompanyInfo> {
+        return try {
+            val response = api.getCompanyInfo(symbol)
+            Resource.Success(response.toCompanyInfo())
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Resource.Error("Couldn't load company info because:\n${e.message}")
+        } catch (e: HttpException) {
+            e.printStackTrace()
+            Resource.Error("Couldn't load company info because:\n${e.message}")
         }
     }
 
